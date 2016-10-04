@@ -1,10 +1,14 @@
-var WebSocket = require('ws');
+var ReconnectingWebSocket = require('rws').ReconnectingWebSocket;
 
-module.exports.connect = (url, cb) => {
-	var ws = new WebSocket(url);
+module.exports.connect = (url, clientId, cb) => {
+
+	clientId = clientId || 'client-'+ Math.ceil(Math.random()*100);
+
+	var ws = new ReconnectingWebSocket(url, {id:clientId});
 	var subchn = {};
 
 	var session = {
+		id: clientId,
 		pub: (chn, msg) => {
 			var pack = JSON.stringify({chn:chn, msg:msg});
 			ws.send( pack );
@@ -16,12 +20,22 @@ module.exports.connect = (url, cb) => {
 		}
 	};
 
-	ws.on('open', () => {
+	ws.onopen = () => {
+		console.log('connection open');
 		cb( session );
-	});
+	};
 
-	ws.on('message', (data, flags) => {
+	ws.onclose = () => {
+		console.log('connection closed');
+	};
+
+	ws.onerror = (err) => {
+		console.log('connection error', err);
+	};
+
+	ws.onmessage = (event) => {
 		var msgchn = -1;
+		var data = event.data;
 		if( subchn[ws._x_channel] ){
 			try {
 				var json = JSON.parse(data);
@@ -34,5 +48,5 @@ module.exports.connect = (url, cb) => {
 				console.log('# hush: (', data, '). We listen to ', Object.keys(subchn) );
 			}				
 		}
-	});
+	};
 }
